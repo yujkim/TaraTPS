@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>툴디 VOC 기반 템플릿 경험 개선안 | 김유진</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    
+    :root {
+      --bg: #f8fafc;
+      --panel-bg: rgba(255, 255, 255, 0.75);
+      --panel-border: rgba(226, 232, 240, 0.8);
+      --black: #0f172a;
+      --ink: #334155;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --blue: #1668ff;
+      --blue-soft: #eef2ff;
+      --blue-glow: rgba(22, 104, 255, 0.15);
+      --purple: #8b5cf6;
+      --purple-soft: #f5f3ff;
+      --green: #10b981;
+      --green-soft: #ecfdf5;
+      --warn: #f59e0b;
+      --warn-soft: #fffbeb;
+      --nav-h: 72px;
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --font-title: 'Outfit', 'Plus Jakarta Sans', 'Pretendard', -apple-system, sans-serif;
+      --font-body: 'Plus Jakarta Sans', 'Pretendard', -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-body);
+      color: var(--ink);
+      background: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(22, 104, 255, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.06) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(245, 158, 11, 0.03) 0px, transparent 50%);
+    }
+
+    h1, h2, h3, p { word-break: keep-all; letter-spacing: -0.02em; }
+    h1 { font-family: var(--font-title); font-size: clamp(34px, 4.5vw, 62px); line-height: 1.1; font-weight: 900; color: var(--black); }
+    h2 { font-family: var(--font-title); font-size: clamp(24px, 2.8vw, 38px); line-height: 1.2; font-weight: 800; color: var(--black); }
+    h3 { font-family: var(--font-title); font-size: clamp(16px, 1.3vw, 20px); line-height: 1.35; font-weight: 700; color: var(--black); }
+    p, li { font-size: clamp(13px, 0.95vw, 15px); line-height: 1.6; }
+    ul { padding-left: 18px; }
+
+    /* 메쉬 그라디언트 글로우 데코 */
+    .glow-dot {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      filter: blur(80px);
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.5;
+    }
+    .glow-dot-blue { background: var(--blue); top: 10%; left: 5%; }
+    .glow-dot-purple { background: var(--purple); bottom: 15%; right: 10%; }
+
+    /* 슬라이드 덱 구조 */
+    .deck {
+      position: relative;
+      height: calc(100vh - var(--nav-h));
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .page {
+      position: absolute;
+      inset: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      padding: 38px 48px 30px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.04);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(20px) scale(0.98);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+
+    .page.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    /* 탑바 */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+      z-index: 2;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      color: var(--black);
+      font-size: 14px;
+    }
+    
+    .brand img {
+      max-height: 28px;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.05));
+    }
+
+    .kicker {
+      color: var(--blue);
+      font-family: var(--font-title);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      background: var(--blue-soft);
+      padding: 4px 10px;
+      border-radius: 999px;
+      display: inline-flex;
+    }
+
+    .lead {
+      color: var(--ink);
+      font-size: clamp(15px, 1.2vw, 18px);
+      line-height: 1.55;
+      font-weight: 500;
+    }
+
+    /* 칩스 스타일 */
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.6);
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+    .chip.blue {
+      border-color: var(--blue);
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+    .chip.dark {
+      background: var(--black);
+      color: #fff;
+      border-color: var(--black);
+    }
+
+    /* 레이아웃 그리드 */
+    .grid-2 { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 40px; flex: 1; min-height: 0; align-items: stretch; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; flex: 1; min-height: 0; }
+
+    /* 프리미엄 카드/패널 */
+    .panel {
+      position: relative;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid var(--panel-border);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 0;
+      box-shadow: 0 10px 25px rgba(15,23,42,0.02);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .panel:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px rgba(15,23,42,0.04);
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      top: -1px; left: 24px; right: 24px;
+      height: 3px;
+      background: var(--black);
+      border-radius: 99px;
+    }
+
+    .panel.blue {
+      background: linear-gradient(180deg, var(--blue-soft), rgba(255, 255, 255, 0.4));
+    }
+    .panel.blue::before {
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+    }
+
+    .panel.dark {
+      background: var(--black);
+      color: #fff;
+      border: 0;
+      box-shadow: 0 20px 40px rgba(15,23,42,0.15);
+    }
+    .panel.dark::before { display: none; }
+    .panel.dark h3, .panel.dark p { color: #fff; }
+
+    /* 요약 메시지 레프트 보더 */
+    .big-message {
+      position: relative;
+      padding: 14px 18px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: var(--radius-sm);
+      border-left: 4px solid var(--blue);
+      color: var(--black);
+      font-size: 16px;
+      line-height: 1.5;
+      font-weight: 800;
+      box-shadow: 0 4px 12px rgba(22, 104, 255, 0.05);
+    }
+
+    /* 리스트 및 노트 */
+    .note-list {
+      display: grid;
+      gap: 0;
+      margin-top: 8px;
+    }
+    
+    .note {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+      align-items: start;
+    }
+    .note:last-child { border-bottom: 0; }
+    
+    .num {
+      font-family: var(--font-title);
+      color: var(--blue);
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 900;
+      background: var(--blue-soft);
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+    }
+    
+    .note strong { display: block; margin-bottom: 4px; font-size: 14px; color: var(--black); font-weight: 700; }
+    .note span { display: block; color: var(--muted); font-size: 13px; line-height: 1.45; }
+
+    /* 아젠다 레이아웃 */
+    .agenda { flex: 1; display: grid; grid-template-columns: 0.82fr 1.18fr; gap: 40px; min-height: 0; }
+    .agenda-hero {
+      background: linear-gradient(135deg, var(--black), #1e293b);
+      color: #fff;
+      padding: 42px 36px;
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 15px 30px rgba(15,23,42,0.1);
+    }
+    .agenda-hero h3, .agenda-hero p { color: #fff; }
+    .agenda-hero p { color: #94a3b8; font-size: 15px; }
+    
+    .agenda-list {
+      display: grid;
+      align-content: center;
+      border-top: 2px solid var(--black);
+    }
+    
+    .agenda-item {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+      transition: padding-left 0.2s ease;
+    }
+    .agenda-item:hover { padding-left: 8px; }
+    .agenda-item:last-child { border-bottom: 0; }
+    
+    .agenda-num {
+      font-family: var(--font-title);
+      color: var(--blue);
+      font-size: 26px;
+      font-weight: 900;
+    }
+    
+    .agenda-item h3 { font-size: 16px; font-weight: 700; }
+    .agenda-item p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    /* 스크린 샷 디자인 */
+    .screen-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; flex: 1; min-height: 0; }
+    .screen {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: rgba(255,255,255,0.4);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+    }
+    
+    .screen h3 { margin-top: 14px; font-size: 16px; }
+    .screen p { color: var(--muted); margin-top: 6px; font-size: 13px; }
+    
+    .shot {
+      position: relative;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+    }
+    
+    .screen img {
+      width: 100%;
+      height: min(34vh, 280px);
+      object-fit: cover;
+      object-position: top center;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      display: block;
+      transition: transform 0.5s ease;
+    }
+    .shot:hover img { transform: scale(1.03); }
+    
+    .shot-note {
+      position: absolute;
+      display: grid;
+      gap: 4px;
+      max-width: 220px;
+      padding: 12px 14px;
+      border: 1px solid rgba(22, 104, 255, 0.2);
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      color: var(--black);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+      font-size: 12px;
+      line-height: 1.4;
+      z-index: 3;
+    }
+    .shot-note b {
+      font-family: var(--font-title);
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+    }
+    .shot-note.left { left: 16px; top: 16px; }
+    .shot-note.right { right: 16px; top: 16px; }
+    .shot-note.bottom { left: 16px; bottom: 16px; }
+
+    /* 페르소나 VOC 테이블 스타일 */
+    .need-map {
+      display: grid;
+      gap: 0;
+      border-top: 2px solid var(--black);
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    
+    .need-row {
+      display: grid;
+      grid-template-columns: 150px 1.1fr 0.9fr 100px;
+      gap: 20px;
+      align-items: center;
+      padding: 14px 8px;
+      border-bottom: 1px solid var(--line);
+      transition: background 0.2s ease;
+    }
+    .need-row:hover:not(.head) { background: rgba(22, 104, 255, 0.02); }
+    
+    .need-row.head {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding-top: 10px;
+      background: transparent;
+      border-bottom: 2px solid var(--line);
+    }
+    
+    .need-persona { display: flex; align-items: center; gap: 12px; font-weight: 800; color: var(--black); }
+    .need-persona img { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--blue); object-fit: cover; }
+    .need-row p { font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+
+    .persona-check-page { gap: 16px; }
+    .persona-card-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+    .persona-card {
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+    }
+    .persona-card.primary {
+      background: linear-gradient(180deg, var(--blue-soft), rgba(255, 255, 255, 0.82));
+      border-color: rgba(22, 104, 255, 0.26);
+    }
+    .persona-card img {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--blue);
+      background: #fff;
+      margin-bottom: 10px;
+    }
+    .persona-card h3 { font-size: 17px; margin-bottom: 2px; }
+    .persona-card .role { font-size: 11px; font-weight: 800; color: var(--blue); margin-bottom: 10px; }
+    .persona-card p { font-size: 12.6px; line-height: 1.45; color: var(--ink); margin: 0 0 9px; }
+    .persona-card b { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .persona-card .tag { margin-top: auto; }
+
+    .interaction-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(22, 104, 255, 0.18);
+      background: rgba(22, 104, 255, 0.06);
+      color: var(--blue);
+      font-size: 11.5px;
+      font-weight: 800;
+    }
+    .interaction-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 0 4px rgba(22, 104, 255, 0.12);
+    }
+
+    .final-page .panel { padding: 28px; }
+    .final-page .note { gap: 16px; padding: 18px 0; }
+    .final-page .note strong { font-size: 17px; letter-spacing: 0; }
+    .final-page .note span { font-size: 14px; line-height: 1.55; color: #475569; }
+    .final-page .panel.dark h3 { color: #fff; font-size: 26px; }
+    .final-page .panel.dark .note { border-bottom-color: rgba(255,255,255,0.16); }
+    .final-page .panel.dark .num {
+      background: rgba(255,255,255,0.16);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: none;
+    }
+    .final-page .panel.dark .note strong { color: #fff; font-size: 18px; }
+    .final-page .panel.dark .note span { color: rgba(255,255,255,0.82); font-size: 14.5px; line-height: 1.6; }
+
+    .info-toggle {
+      border: 1px solid rgba(22, 67, 240, 0.25);
+      background: #fff;
+      color: var(--blue);
+      border-radius: 999px;
+      padding: 9px 13px;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+      transition: 0.18s ease;
+    }
+    .info-toggle:hover { transform: translateY(-1px); border-color: var(--blue); }
+    .info-panel {
+      display: none;
+      margin-top: 14px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      border: 1px solid rgba(22, 67, 240, 0.18);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1);
+    }
+    .info-panel.open { display: block; }
+    .info-panel h4 { font-size: 15px; margin-bottom: 8px; color: var(--black); }
+    .info-panel p { font-size: 13.5px; line-height: 1.55; color: var(--ink); margin: 0; }
+    .info-panel .mini-note { margin-top: 10px; color: var(--muted); font-size: 12.5px; }
+
+    .problem-page { gap: 12px; }
+    .problem-page .grid-2 {
+      flex: 0 0 auto;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .problem-page .panel { padding: 15px 16px; min-height: 124px; }
+    .problem-page .panel h3 { font-size: 17px; margin-bottom: 6px; }
+    .problem-page .lead { font-size: 14px; line-height: 1.38; }
+    .problem-page .big-message { margin-top: 0; padding: 10px 12px; font-size: 13.5px; line-height: 1.35; border-radius: 12px; }
+    .problem-page .problem-footnote {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      line-height: 1.35;
+      border-left-width: 4px;
+    }
+
+    .persona-method-page { gap: 12px; position: relative; }
+    .persona-method-page .grid-2 { gap: 24px; }
+    .persona-method-page .panel { padding: 16px 18px; }
+    .persona-method-page .note-list { gap: 7px; }
+    .persona-method-page .note { padding: 7px 0; gap: 9px; }
+    .persona-method-page .note span { font-size: 12px; line-height: 1.35; }
+    .persona-method-page .lead { font-size: 14px; line-height: 1.38; }
+    .persona-method-page .big-message { padding: 10px 12px; font-size: 13px; line-height: 1.35; border-radius: 12px; }
+    .persona-method-page .info-panel {
+      position: absolute;
+      top: 104px;
+      right: 48px;
+      z-index: 20;
+      width: min(560px, calc(100% - 96px));
+      margin-top: 0;
+      padding: 12px 16px;
+    }
+    .persona-method-page .info-panel p { font-size: 12.5px; line-height: 1.45; }
+    
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: fit-content;
+      min-height: 26px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+      border: 1px solid rgba(22,104,255,0.1);
+    }
+    .tag.dark { background: var(--black); color: #fff; border-color: var(--black); }
+    .tag.warn { background: var(--warn-soft); color: #b45309; border-color: rgba(245,158,11,0.1); }
+
+    /* 와이어프레임 & 검수 카드 디자인 */
+    .wire {
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,0.6);
+      border: 1px solid var(--panel-border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+    .wire-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .status {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 800;
+      border: 1px solid rgba(22,104,255,0.15);
+    }
+    
+    .row {
+      display: grid;
+      grid-template-columns: 20px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(226,232,240,0.5);
+      font-size: 13.5px;
+    }
+    .row:last-child { border-bottom: 0; }
+    
+    .box {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 2px solid var(--line);
+      background: #fff;
+      transition: all 0.2s ease;
+    }
+    .box.warn { border-color: var(--warn); background: var(--warn-soft); position: relative; }
+    .box.warn::after {
+      content: "!";
+      color: var(--warn);
+      font-weight: 900;
+      font-size: 12px;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .box.done { border-color: var(--green); background: var(--green-soft); position: relative; }
+    .box.done::after {
+      content: "✓";
+      color: var(--green);
+      font-weight: 900;
+      font-size: 12px;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    
+    .badge {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      background: var(--bg);
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .badge.warn { background: var(--warn-soft); color: #b45309; border-color: rgba(245,158,11,0.1); }
+    .badge.done { background: var(--green-soft); color: #047857; border-color: rgba(16,185,129,0.1); }
+
+    /* 구조 필터 뷰 */
+    .filter-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .filter {
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      background: rgba(255,255,255,0.5);
+      border: 1px solid var(--panel-border);
+      transition: all 0.2s ease;
+    }
+    .filter:hover {
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.02);
+      transform: translateY(-1px);
+    }
+    .filter b { display: block; margin-bottom: 4px; font-size: 14px; color: var(--black); font-weight: 800; }
+    .filter span { color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+
+    .sort-ui { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sort-btn {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.6);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .sort-btn:hover { background: #fff; }
+    .mock { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
+    .mock-browser {
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+      background: #fff;
+      box-shadow: 0 20px 50px rgba(15,23,42,0.06);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      flex: 1;
+    }
+    .mock-nav {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1.5px solid var(--line);
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .mock-dots { display: flex; gap: 6px; margin-right: 20px; }
+    .mock-dot { width: 10px; height: 10px; border-radius: 50%; background: #e2e8f0; }
+    .mock-dot.red { background: #ff5f56; }
+    .mock-dot.yellow { background: #ffbd2e; }
+    .mock-dot.green { background: #27c93f; }
+    
+    .mock-logo {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: 24px;
+    }
+    .mock-menu { display: flex; gap: 14px; color: var(--muted); font-size: 11.5px; font-weight: 700; align-items: center; }
+    .mock-menu span { cursor: pointer; display: inline-flex; align-items: center; transition: color 0.2s; }
+    .mock-menu span:hover { color: var(--black); }
+    
+    .mock-body {
+      padding: 16px 24px;
+      background: #fff;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      gap: 12px;
+    }
+    
+    .mock-title { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+    .mock-title h3 { font-size: 18px; font-weight: 800; color: var(--black); }
+    .mock-title span { color: var(--muted); font-size: 10.5px; font-weight: 600; }
+    
+    .mock-search-bar {
+      width: 100%;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      background: #f1f5f9;
+      border-radius: 999px;
+      padding: 0 16px;
+      justify-content: space-between;
+      transition: all 0.2s;
+    }
+    
+    .mock-layout { display: grid; grid-template-columns: 160px 1fr; gap: 20px; flex: 1; min-height: 0; }
+    .mock-sidebar {
+      border-right: 1.5px solid var(--line);
+      padding-right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .mock-cat-btn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--ink);
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .mock-cat-btn:hover { background: #f1f5f9; color: var(--black); }
+    .mock-cat-btn.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .filter-pill {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 6px 12px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .filter-pill:hover { background: #f8fafc; border-color: var(--muted); }
+    .filter-pill.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      border-color: var(--blue);
+      box-shadow: 0 2px 8px rgba(22, 104, 255, 0.1);
+      font-weight: 800;
+    }
+    .tag-chip {
+      background: #f1f5f9;
+      color: var(--muted);
+      border-radius: 99px;
+      padding: 4px 10px;
+      font-size: 10.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .tag-chip:hover { background: #e2e8f0; color: var(--black); }
+    
+    .mock-results-head { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; margin-bottom: 8px; }
+    .mock-result-text { color: var(--black); font-size: 12px; font-weight: 800; }
+    
+    .mock-sort {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .mock-sort button {
+      padding: 6px 10px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mock-sort button:hover { background: #f8fafc; color: var(--black); }
+    .mock-sort button:last-child { border-right: 0; }
+    .mock-sort button.active { background: var(--blue); color: #fff; }
+    
+    .mock-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; overflow-y: auto; align-content: start; }
+    .mock-card {
+      border: 1.5px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.2s ease;
+      min-height: 170px;
+    }
+    .mock-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.04); border-color: #cbd5e1; }
+    
+    .mock-thumb {
+      aspect-ratio: 4/3;
+      border-radius: 4px;
+      background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      position: relative;
+    }
+    
+    .mock-label { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+    .mock-label b { color: var(--black); font-weight: 800; font-size: 11px; }
+    
+    .mock-caption { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; flex-shrink: 0; }
+    .mock-caption div { border-top: 1.5px solid var(--line); padding-top: 8px; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+    .mock-caption b { display: block; color: var(--black); margin-bottom: 2px; font-size: 12px; }
+
+    /* 메트릭 블록 */
+    .metric {
+      border-radius: var(--radius-sm);
+      background: #fff;
+      border: 1px solid var(--panel-border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.01);
+      border-top: 3px solid var(--blue);
+    }
+    .metric b {
+      font-family: var(--font-title);
+      color: var(--blue);
+      font-size: 32px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .metric span { display: block; font-weight: 800; color: var(--black); font-size: 14px; }
+    .metric p { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 4px; }
+
+    /* 프리미엄 플로팅 네비게이터 */
+    .nav {
+      position: fixed;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%);
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 20px;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 999px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+      z-index: 100;
+      transition: all 0.3s ease;
+    }
+    
+    .nav button {
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-weight: 900;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .nav button:hover {
+      background: var(--blue);
+      transform: scale(1.1);
+    }
+    .nav button:active { transform: scale(0.95); }
+    
+    .counter {
+      color: rgba(255,255,255,0.5);
+      font-family: var(--font-title);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .counter .cur { color: #fff; font-size: 16px; font-weight: 900; }
+  </style>
+</head>
+<body>
+  <!-- 메쉬 그라디언트 데코 -->
+  <div class="glow-dot glow-dot-blue"></div>
+  <div class="glow-dot glow-dot-purple"></div>
+
+  <main class="deck">
+    <!-- Slide 1 -->
+    <section class="page active">
+      <div class="topbar">
+        <div class="brand"><img src="./asset_tara_logo_cutout.png" alt="Tara TPS logo">서비스기획 직무 지원자 김유진</div>
+        <div class="chips"><span class="chip blue">Tooldi</span><span class="chip">Service Planning</span></div>
+      </div>
+      <div class="grid-2">
+        <div style="align-self:center">
+          <div class="kicker">VOC-BASED SERVICE PLANNING</div>
+          <h1 style="margin-top:14px; background: linear-gradient(135deg, var(--black), var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">툴디 커뮤니티 VOC 기반<br>템플릿 경험 개선안</h1>
+          <p class="lead" style="margin-top:22px">처음 제안은 인쇄 주문 전 오타·문구 검수였지만, VOC를 다시 보며 툴디의 핵심 상품이 템플릿 경험에 있다는 점에 집중했습니다.</p>
+          <p class="lead" style="margin-top:12px; font-size:18px; color:var(--muted);">그래서 이번 기획은 템플릿을 더 잘 찾고, 더 명확히 분류하고, 더 예측 가능하게 노출하는 방향으로 문제를 재정의했습니다.</p>
+        </div>
+        <div class="panel blue" style="align-self:center">
+          <h3>이번 제안의 출발점</h3>
+          <div class="big-message">오타 검수는 인쇄 전환의 신뢰를 보완하고, 핵심 개선은 템플릿 탐색·분류·노출 경험에 둡니다.</div>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>기존 제안</strong><span>명함·청첩장 인쇄 주문 전 문구 확인</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>VOC 확인</strong><span>템플릿·요소 등록, 태그, 심사, 노출 기준 이슈</span></div></div>
+            <div class="note"><div class="num">3</div><div><strong>재정의</strong><span>구조 기반 필터, 인기순·최신순, 주문 전 검수</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 2 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">AGENDA</div><h2>목차</h2></div>
+        <div class="chips"><span class="chip dark">00</span></div>
+      </div>
+      <div class="agenda">
+        <div class="agenda-hero">
+          <div>
+            <div class="kicker" style="color:#8fb4ff; background: rgba(255,255,255,0.1);">CORE STORY</div>
+            <h3 style="margin-top:12px; font-size: 24px; line-height: 1.3;">처음 안은 인쇄 검수였고,<br>VOC를 보며 템플릿 경험으로<br>문제를 다시 잡았습니다.</h3>
+          </div>
+        </div>
+        <div class="agenda-list">
+          <div class="agenda-item"><div class="agenda-num">01</div><div><h3>VOC 수집·정제</h3><p>3개 게시판, 624건 수집, 546건 분석</p></div></div>
+          <div class="agenda-item"><div class="agenda-num">02</div><div><h3>LDA 기반 토픽 분석 결과</h3><p>업로드·심사·태그·노출 기준 이슈 확인</p></div></div>
+          <div class="agenda-item"><div class="agenda-num">03</div><div><h3>문제 재정의</h3><p>등록 기준, 분류 기준, 노출 기준, 주문 확인</p></div></div>
+          <div class="agenda-item"><div class="agenda-num">04</div><div><h3>개선안과 화면</h3><p>구조 필터, 정렬, 오타·문구 검수</p></div></div>
+          <div class="agenda-item"><div class="agenda-num">05</div><div><h3>도입과 운영</h3><p>MVP 범위와 출시 후 지표</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 3 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">VOC DATA</div><h2>커뮤니티 VOC 수집 및 정제</h2></div>
+        <div class="chips"><span class="chip blue">624 Crawled</span><span class="chip">546 Analyzed</span></div>
+      </div>
+      <div class="grid-3">
+        <div class="panel">
+          <h3>수집 범위</h3>
+          <p class="lead">툴디 커뮤니티 3개 게시판에서 공개 글을 수집했습니다.</p>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>제 궁금증 풀어주실 분?</strong><span>기능·심사·사용 문의</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>크리에이터 대화방</strong><span>업로드·태그·수익·정산 문의</span></div></div>
+            <div class="note"><div class="num">3</div><div><strong>모두의 자유대화방</strong><span>잡담과 일반 반응</span></div></div>
+          </div>
+        </div>
+        <div class="panel blue">
+          <h3>정제 기준</h3>
+          <p class="lead">분석 전에 공지, 운영자성 글, 빈 텍스트, 너무 짧거나 긴 글을 제외했습니다.</p>
+          <div class="big-message">전체 624건 중 546건을 분석 대상으로 사용했습니다.</div>
+        </div>
+        <div class="panel">
+          <h3>분석 원칙</h3>
+          <p class="lead">토픽 모델링은 반복 이슈를 빠르게 묶기 위한 보조 도구로만 사용했습니다.</p>
+          <div class="big-message">커뮤니티 특성상 크리에이터 의견이 많이 포함될 수 있어, 일반 사용자 전체의 의견으로 확대 해석하지 않았습니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 4 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">LDA TOPIC MODELING</div><h2>LDA 기반 반복 이슈 유형화</h2></div>
+        <div class="chips"><span class="chip blue">LDA Topic Modeling</span><span class="chip">Coherence 0.3942</span></div>
+      </div>
+      <div class="need-map">
+        <div class="need-row head"><div>Topic</div><div>문제군</div><div>대표 VOC</div><div>건수</div></div>
+        <div class="need-row"><div class="need-persona">Topic 4</div><p>요소 업로드·반려·태그·카테고리 기준 불확실성</p><p>왜 반려됐는지, 어떤 카테고리로 올려야 하는지 모르겠다는 문의가 반복됨</p><span class="tag dark">139건</span></div>
+        <div class="need-row"><div class="need-persona">Topic 2</div><p>템플릿·챌린지·제작 인정 기준 모호성</p><p>카테고리 1개 인정, 템플릿 종류 중복, 챌린지 기준 관련 문의</p><span class="tag">111건</span></div>
+        <div class="need-row"><div class="need-persona">Topic 1</div><p>심사 상태·콘텐츠 성과·정산 확인 문제</p><p>심사 대기, 사용수와 판매수, 정산 반영 시점이 명확하지 않음</p><span class="tag">93건</span></div>
+        <div class="need-row"><div class="need-persona">Topic 3</div><p>구독·포인트·등급 정책 문의</p><p>무료 구독, 포인트 결제, 브러쉬 등급과 유료 템플릿 수익 관련 문의</p><span class="tag">87건</span></div>
+        <div class="need-row"><div class="need-persona">Topic 0/5</div><p>계정·크리에이터 운영 정책 문의</p><p>계정/메일 문제, 저작권, 심사 지연, 크리에이터 정책 관련 문의</p><span class="tag">116건</span></div>
+      </div>
+    </section>
+
+    <!-- Slide 5 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">KEY FINDING</div><h2>VOC 기반 문제 방향 재정의</h2></div>
+        <div class="chips"><span class="chip blue">Finding</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>분석 전 가정</h3>
+          <p class="lead">처음 제출한 기획안은 명함·청첩장 인쇄 주문 전 오타·문구 검수에 초점을 두었습니다.</p>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>기존 안</strong><span>인쇄 주문 직전 텍스트를 추출하고 사용자가 다시 확인하는 흐름</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>전제</strong><span>명함·청첩장처럼 오탈자 손실이 큰 인쇄물에서 신뢰를 보완</span></div></div>
+            <div class="note"><div class="num">3</div><div><strong>한계</strong><span>하지만 툴디의 주 상품은 인쇄물 자체보다 템플릿 경험에 가깝습니다.</span></div></div>
+          </div>
+        </div>
+        <div class="panel blue">
+          <h3>VOC로 다시 본 방향</h3>
+          <p class="lead">반복 VOC는 크리에이터가 템플릿과 요소를 등록하고 심사받고 노출되는 과정의 불확실성에 더 많이 쏠려 있었습니다.</p>
+          <div class="big-message">따라서 구조 기반 필터는 사용자 탐색 기능이자, 크리에이터 업로드·분류·노출 기준을 정리하는 기능입니다.</div>
+        </div>
+      </div>
+      <div class="big-message">이 관점에서 다음으로 확인할 것은 현재 화면이 템플릿을 어떤 기준으로 찾게 하고, 어떤 기준으로 분류하게 만드는지입니다.</div>
+    </section>
+
+    <!-- Slide 6 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">CURRENT SCREEN</div><h2>현재 템플릿 탐색 기준 비교</h2></div>
+        <div class="chips"><span class="chip blue">Captured Screen</span></div>
+      </div>
+      <div class="screen-pair">
+        <div class="screen">
+          <div class="shot">
+            <img src="./미리디 화면.png" alt="미리디 필터 화면">
+            <div class="shot-note left">
+              <b>Observation</b>
+              감성 기준 필터가 노출되어 사용자가 처음부터 취향 언어로 범위를 좁힐 수 있습니다.
+            </div>
+          </div>
+          <h3>미리디: 감성 기준 필터가 전면에 보인다</h3>
+          <p>귀여운, 감성적인, 전문적인 같은 감성어로 템플릿을 좁히게 되어 있습니다.</p>
+        </div>
+        <div class="screen">
+          <div class="shot">
+            <img src="./툴디 화면.png" alt="툴디 템플릿 화면">
+            <div class="shot-note right">
+              <b>Opportunity</b>
+              검색 진입은 강하지만, 템플릿을 어떤 기준으로 좁힐지 한 번에 보이는 장치가 약합니다.
+            </div>
+            <div class="shot-note bottom">
+              <b>Proposal Point</b>
+              툴디는 감성어보다 템플릿의 실제 구성 방식으로 필터를 제안합니다.
+            </div>
+          </div>
+          <h3>툴디: 검색창은 있지만 선택 기준은 덜 드러난다</h3>
+          <p>템플릿이 핵심 상품으로 보이지만, 결과를 어떤 기준으로 좁힐지 화면에서 즉시 보이지 않습니다.</p>
+        </div>
+      </div>
+      <div class="big-message">따라서 툴디는 경쟁사처럼 감성어를 따라가기보다, 템플릿의 실제 구성 방식으로 선택 기준을 만들 수 있습니다.</div>
+    </section>
+
+    <!-- Slide 4 -->
+    <section class="page problem-page">
+      <div class="topbar">
+        <div><div class="kicker">PROBLEM DEFINITION</div><h2>핵심 이슈 4가지</h2></div>
+        <div class="chips"><span class="chip">Register</span><span class="chip">Classify</span><span class="chip">Expose</span><span class="chip">Confirm</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>1. 등록 기준</h3>
+          <p class="lead">크리에이터는 요소·템플릿을 어떤 형식과 카테고리로 올려야 하는지 헷갈립니다.</p>
+          <div class="big-message">업로드 기준 안내</div>
+        </div>
+        <div class="panel blue">
+          <h3>2. 분류 기준</h3>
+          <p class="lead">사용자와 크리에이터 모두 템플릿이 어떤 기준으로 묶이는지 예측하기 어렵습니다.</p>
+          <div class="big-message">구조 기반 필터</div>
+        </div>
+        <div class="panel">
+          <h3>3. 노출 기준</h3>
+          <p class="lead">신규 콘텐츠가 어떻게 노출되고 인기 콘텐츠가 어떻게 고착되는지 기준이 필요합니다.</p>
+          <div class="big-message">인기순·최신순 정렬</div>
+        </div>
+        <div class="panel blue">
+          <h3>4. 확인 기준</h3>
+          <p class="lead">명함·청첩장처럼 인쇄 후 수정이 어려운 상품은 주문 직전 문구 확인이 필요합니다.</p>
+          <div class="big-message">오타·문구 검수</div>
+        </div>
+      </div>
+      <div class="big-message problem-footnote">인쇄 주문 전 오타·문구 검수는 VOC의 중심 이슈는 아니지만, 명함·청첩장 전환 단계의 신뢰 보완 기능으로 유지합니다.</div>
+    </section>
+
+    <!-- Slide 5 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">MAIN IDEA</div><h2>개선안 1. 구조 기반 스타일 필터</h2></div>
+        <div class="chips"><span class="chip blue">Core Proposal</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>왜 이 기능인가?</h3>
+          <p class="lead">VOC에서 드러난 태그·카테고리·노출 기준의 혼란을 사용자 화면과 크리에이터 업로드 기준으로 함께 풀어냅니다.</p>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>사용자 관점</strong><span>원하는 구성의 템플릿을 더 빠르게 찾습니다.</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>크리에이터 관점</strong><span>업로드 시 분류 기준을 이해하고 노출을 예측합니다.</span></div></div>
+            <div class="note"><div class="num">3</div><div><strong>운영 관점</strong><span>반려·태그·카테고리 문의를 줄일 수 있는 기준이 됩니다.</span></div></div>
+          </div>
+        </div>
+        <div class="panel blue">
+          <h3>필터 옵션은 4개만 둔다</h3>
+          <div class="filter-grid">
+            <div class="filter"><b>사진 중심</b><span>인물·제품·웨딩 사진이 주요 구성 요소</span></div>
+            <div class="filter"><b>일러스트 중심</b><span>그림·아이콘·장식 요소가 주요 구성 요소</span></div>
+            <div class="filter"><b>도형·그래픽 중심</b><span>면·선·도형이 주요 시각 언어</span></div>
+            <div class="filter"><b>글자 중심</b><span>문구·제목·정보 전달이 핵심</span></div>
+          </div>
+          <div class="big-message">4개 테마는 템플릿의 첫인상을 결정하는 주요 구성 요소를 기준으로 나눴습니다. 사진, 일러스트, 도형·그래픽, 글자 중 무엇이 중심인지 먼저 구분하면 사용자는 결과를 더 빠르게 좁힐 수 있습니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 6 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">SUPPORTING IDEA</div><h2>개선안 2. 인기순·최신순 정렬</h2></div>
+        <div class="chips"><span class="chip blue">Community VOC</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>역할</h3>
+          <p class="lead">정렬은 탐색 편의 기능이면서 신규 크리에이터 콘텐츠의 초기 노출 기회와 연결됩니다.</p>
+          <div class="sort-ui">
+            <button class="sort-btn active">인기순</button>
+            <button class="sort-btn">최신순</button>
+            <button class="sort-btn">기본순</button>
+          </div>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>인기순</strong><span>빠르게 무난한 후보를 고르고 싶은 사용자에게 유효합니다.</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>최신순</strong><span>학생과 크리에이터가 새 템플릿을 확인하거나 노출시키는 데 유효합니다.</span></div></div>
+          </div>
+        </div>
+        <div class="panel blue">
+          <h3>주의점</h3>
+          <p class="lead">정렬은 편리하지만 운영 정책 없이 붙이면 오히려 불신이 생길 수 있습니다.</p>
+          <div class="big-message">인기 기준은 사용량, 찜, 편집 진입, 주문 전환을 함께 보되 신규 콘텐츠의 노출 기회도 보장해야 합니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 7 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">WIREFRAME</div><h2>템플릿 리스트 적용 예시</h2></div>
+        <div class="chips"><span class="interaction-hint"><span class="interaction-dot"></span>필터·정렬 반응형 화면</span><span class="chip blue">Filter + Sort</span></div>
+      </div>
+      <div class="mock">
+        <div class="mock-browser">
+          <!-- Real Tooldi Top Navigation Bar -->
+          <div class="mock-nav">
+            <div class="mock-dots">
+              <div class="mock-dot red"></div>
+              <div class="mock-dot yellow"></div>
+              <div class="mock-dot green"></div>
+            </div>
+            <div class="mock-logo">
+              <img src="./툴디로고.png" alt="tooldi logo" style="height: 18px; object-fit: contain; vertical-align: middle;">
+            </div>
+            <div class="mock-menu">
+              <span class="active" style="background:#f1f5f9; padding:4px 10px; border-radius:99px; color:#0f172a; font-weight:800; font-size:11px;">템플릿</span>
+              <span>콘텐츠 <span style="font-size:7px; margin-left:2px;">▼</span></span>
+              <span>크리에이터</span>
+              <span>소설</span>
+              <span style="font-weight:800; color:#1e293b;">툴디 Pro</span>
+              <span>크리에이터 지원</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; margin-left:auto; font-size:13px; color:#64748b;">
+              <span style="cursor:pointer;" title="장바구니">🛒</span>
+              <span style="cursor:pointer;" title="채팅">💬</span>
+              <span style="cursor:pointer;" title="알림">🔔</span>
+              <button type="button" style="background:#1668ff; color:#fff; border:0; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:800; cursor:pointer;">디자인 시작</button>
+              <div style="width:24px; height:24px; border-radius:50%; background:#ef4444; border:1px solid #e2e8f0; display:grid; place-items:center; color:#fff; font-size:9px; font-weight:800;">U</div>
+            </div>
+          </div>
+          
+          <div class="mock-body">
+            <!-- Real Tooldi Hero Search Header -->
+            <div style="text-align:center; padding:8px 0 2px; display:flex; flex-direction:column; gap:4px; flex-shrink:0;">
+              <h4 style="font-size:17px; font-weight:900; color:#0f172a; font-family:var(--font-title);">무료 템플릿과 최신 디자인 검색.</h4>
+              <p style="font-size:10px; color:#64748b; font-weight:500;">프레젠테이션, 굿즈, 홍보물까지! tooldi의 다양한 무료 템플릿으로 디자인 고민을 끝내보세요.</p>
+            </div>
+
+            <!-- Capsule Search Input -->
+            <div style="display:flex; justify-content:center; margin-bottom:4px; flex-shrink:0;">
+              <div class="mock-search-bar">
+                <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                  <span style="color:#94a3b8; font-size:13px;">🔍</span>
+                  <input type="text" placeholder="원하는 콘텐츠를 검색해 보세요." style="border:0; background:transparent; font-size:11.5px; color:#334155; width:100%; outline:none; font-weight:500;">
+                </div>
+                <span style="color:#94a3b8; font-size:13px; cursor:pointer;" title="상세 필터">🎛️</span>
+              </div>
+            </div>
+
+            <div class="mock-layout" data-tooldi-wire>
+              <!-- Real Tooldi Category Sidebar -->
+              <aside class="mock-sidebar">
+                <div class="mock-filter-title">카테고리</div>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                  <button type="button" class="mock-cat-btn">전체 템플릿</button>
+                  <button type="button" class="mock-cat-btn active">명함 템플릿</button>
+                  <button type="button" class="mock-cat-btn">청첩장·초대장</button>
+                  <button type="button" class="mock-cat-btn">프레젠테이션</button>
+                  <button type="button" class="mock-cat-btn">포스터·플라이어</button>
+                </div>
+                <div class="mock-filter-title" style="margin-top:10px;">필터 설정</div>
+                <div style="display:flex; flex-direction:column; gap:6px; padding:0 8px;">
+                  <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; color:var(--ink); cursor:pointer;">
+                    <input type="checkbox" checked style="accent-color:var(--blue);"> 무료 템플릿
+                  </label>
+                  <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; color:var(--ink); cursor:pointer;">
+                    <input type="checkbox" style="accent-color:var(--blue);"> 인쇄 가능 상품
+                  </label>
+                </div>
+              </aside>
+
+              <div style="display:flex; flex-direction:column; min-height:0;">
+                <!-- Advanced Filters (inspired by Miridi - Fully Visible horizontal filter strip) -->
+                <div style="display:flex; align-items:center; gap:10px; padding:2px 0 8px; border-bottom:1px solid #e2e8f0; margin-bottom:8px; flex-shrink:0; overflow-x:auto;">
+                  <span style="font-size:11px; font-weight:800; color:#64748b; white-space:nowrap;">구조 필터:</span>
+                  <div data-wire-filter style="display:flex; gap:5px;">
+                    <button type="button" class="filter-pill active" data-filter="사진 중심">📸 사진 중심</button>
+                    <button type="button" class="filter-pill" data-filter="일러스트 중심">🎨 일러스트 중심</button>
+                    <button type="button" class="filter-pill" data-filter="도형·그래픽 중심">📐 도형·그래픽 중심</button>
+                    <button type="button" class="filter-pill" data-filter="글자 중심">✍️ 글자 중심</button>
+                  </div>
+                  <div style="width:1px; height:14px; background:#e2e8f0; margin:0 4px;"></div>
+                  <span style="font-size:11px; font-weight:800; color:#64748b; white-space:nowrap;">추천 태그:</span>
+                  <div style="display:flex; gap:5px; overflow-x:auto;">
+                    <span class="tag-chip">#심플</span>
+                    <span class="tag-chip">#비즈니스</span>
+                    <span class="tag-chip">#전문적인</span>
+                    <span class="tag-chip">#감성</span>
+                  </div>
+                </div>
+
+                <div class="mock-results-head">
+                  <div class="mock-result-text" data-wire-summary>사진 중심 템플릿 · 인기순으로 보는 중</div>
+                  <div class="mock-sort" data-wire-sort>
+                    <button type="button" class="active" data-sort="인기순">인기순</button>
+                    <button type="button" data-sort="최신순">최신순</button>
+                    <button type="button" data-sort="기본순">기본순</button>
+                  </div>
+                </div>
+
+                <div class="mock-grid" data-wire-cards>
+                  <!-- Card 1: Blank Canvas (Tooldi signature) -->
+                  <div class="mock-card blank-card" style="border:1.5px dashed #cbd5e1; background:#f8fafc; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; border-radius:8px;">
+                    <div style="width:28px; height:28px; border-radius:50%; background:#fff; border:1px solid #cbd5e1; display:grid; place-items:center; font-size:14px; color:#64748b; font-weight:bold;">+</div>
+                    <span style="font-size:10.5px; font-weight:800; color:#64748b;">빈 캔버스로 시작</span>
+                  </div>
+
+                  <!-- Card 2 -->
+                  <div class="mock-card">
+                    <div class="mock-thumb" style="background: linear-gradient(135deg, #e0f2fe, #bae6fd); color:#0369a1; display:flex; flex-direction:column; justify-content:space-between; padding:10px; border-radius:4px; height:90px;">
+                      <div class="card-thumb-title" style="font-size:10px; font-weight:800; font-family:var(--font-title); letter-spacing:-0.02em;">PHOTO CARD 1</div>
+                      <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                        <span class="card-badge" style="font-size:7px; background:rgba(255,255,255,0.4); padding:1px 3px; border-radius:2px; font-weight:700;">tooldi free</span>
+                        <span class="card-pages" style="font-size:8px; font-weight:700;">1P</span>
+                      </div>
+                    </div>
+                    <div class="mock-label">
+                      <b class="card-title">블루 비즈니스 명함</b>
+                      <span class="card-meta" style="font-size:9px; color:var(--muted); font-weight:600;">명함 · 90×50mm</span>
+                    </div>
+                  </div>
+
+                  <!-- Card 3 -->
+                  <div class="mock-card">
+                    <div class="mock-thumb" style="background: linear-gradient(135deg, #fef3c7, #fde68a); color:#7c2d12; display:flex; flex-direction:column; justify-content:space-between; padding:10px; border-radius:4px; height:90px;">
+                      <div class="card-thumb-title" style="font-size:10px; font-weight:800; font-family:var(--font-title); letter-spacing:-0.02em;">PHOTO CARD 2</div>
+                      <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                        <span class="card-badge" style="font-size:7px; background:rgba(255,255,255,0.4); padding:1px 3px; border-radius:2px; font-weight:700;">tooldi free</span>
+                        <span class="card-pages" style="font-size:8px; font-weight:700;">2P</span>
+                      </div>
+                    </div>
+                    <div class="mock-label">
+                      <b class="card-title">내추럴 촬영 스튜디오 카드</b>
+                      <span class="card-meta" style="font-size:9px; color:var(--muted); font-weight:600;">명함 · 90×50mm</span>
+                    </div>
+                  </div>
+
+                  <!-- Card 4 -->
+                  <div class="mock-card">
+                    <div class="mock-thumb" style="background: linear-gradient(135deg, #fce7f3, #fbcfe8); color:#9d174d; display:flex; flex-direction:column; justify-content:space-between; padding:10px; border-radius:4px; height:90px;">
+                      <div class="card-thumb-title" style="font-size:10px; font-weight:800; font-family:var(--font-title); letter-spacing:-0.02em;">PHOTO CARD 3</div>
+                      <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                        <span class="card-badge" style="font-size:7px; background:rgba(255,255,255,0.4); padding:1px 3px; border-radius:2px; font-weight:700;">tooldi pro</span>
+                        <span class="card-pages" style="font-size:8px; font-weight:700;">1P</span>
+                      </div>
+                    </div>
+                    <div class="mock-label">
+                      <b class="card-title">웨딩 포토 스냅 명함</b>
+                      <span class="card-meta" style="font-size:9px; color:var(--muted); font-weight:600;">명함 · 90×50mm</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-caption">
+          <div><b>1. 툴디 브랜딩 &amp; 로고</b>실제 툴디의 레이아웃, `tooldi` 공식 로고, 헤더 내비게이션, 상단 검색 영역을 그대로 복각하여 기획안의 실감도를 극대화했습니다.</div>
+          <div><b>2. 구조 필터 다중 선택</b>사진 중심과 글자 중심처럼 여러 기준을 함께 선택할 수 있어, 실제 템플릿의 복합 구성을 반영합니다.</div>
+          <div><b>3. 인터랙티브 검증</b>필터 칩과 정렬을 클릭하면 템플릿 카드 정보가 바뀌어, 개선안의 작동 방식을 바로 확인할 수 있습니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 8 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">PRINT CHECK</div><h2>개선안 3. 인쇄 주문 전 오타·문구 검수</h2></div>
+        <div class="chips"><span class="chip blue">Submitted Idea</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>왜 남겨야 하는가?</h3>
+          <p class="lead">툴디가 템플릿 서비스라고 해도, 명함·청첩장 인쇄 주문 순간에는 사용자의 불안이 커집니다.</p>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>명함</strong><span>이름, 직함, 연락처, 회사명 오류가 신뢰 문제로 이어집니다.</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>청첩장</strong><span>날짜, 장소, 이름 오류는 되돌리기 어렵습니다.</span></div></div>
+            <div class="note"><div class="num">3</div><div><strong>원칙</strong><span>강제 차단이 아니라 체크리스트형 확인 장치로 둡니다.</span></div></div>
+          </div>
+        </div>
+        <div class="wire">
+          <div class="wire-head"><h3>주문 직전 검수 화면</h3><span class="status">Before Payment</span></div>
+          <div class="row"><div class="box done"></div><div>이름 / 직함</div><span class="badge done">확인</span></div>
+          <div class="row"><div class="box warn"></div><div>연락처</div><span class="badge warn">형식 확인 필요</span></div>
+          <div class="row"><div class="box done"></div><div>날짜 / 시간</div><span class="badge done">확인</span></div>
+          <div class="row"><div class="box"></div><div>장소 / 주소</div><span class="badge">사용자 확인</span></div>
+          <div class="big-message">오탐이 많으면 결제 이탈로 이어질 수 있으므로, 사용자가 직접 확인하는 보조 검수로 시작합니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 9 -->
+    <section class="page persona-method-page">
+      <div class="topbar">
+        <div><div class="kicker">PERSONA METHOD</div><h2>VOC 연계 페르소나 설계</h2></div>
+        <div class="chips"><button class="info-toggle" type="button" data-nemotron-toggle>Nemotron이란?</button><span class="chip">NVIDIA Nemotron</span><span class="chip blue">CC-BY-4.0</span></div>
+      </div>
+      <div class="info-panel" data-nemotron-panel>
+        <h4>NVIDIA Nemotron-Personas-Korea</h4>
+        <p>NVIDIA가 공개한 한국인 합성 페르소나 데이터셋입니다. 실제 개인 정보가 아니라 연령, 직업, 가족 환경, 관심사, 기술 친숙도 같은 속성을 가진 가상 인물 데이터로 구성되어 있습니다.</p>
+        <p class="mini-note">이 기획안에서는 실제 고객조사를 대체하는 근거가 아니라, VOC에서 나온 문제를 여러 사용자 맥락에 대입해보는 보조 시뮬레이션 자료로 사용했습니다.</p>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>왜 페르소나를 붙였나</h3>
+          <p class="lead">VOC는 실제 불편을 찾는 단계이고, 페르소나는 개선안이 어떤 사용자에게 더 강하게 작동하는지 확인하는 단계입니다.</p>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>VOC</strong><span>커뮤니티에서 반복되는 문제군을 먼저 확인했습니다.</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>Segment</strong><span>VOC와 겹치는 공급자 축, 그리고 명함·청첩장·무료 사용자 축을 잡았습니다.</span></div></div>
+            <div class="note"><div class="num">3</div><div><strong>Persona</strong><span>NVIDIA 한국인 합성 페르소나 100만 명 데이터셋에서 세그먼트별 대표 1명을 추출했습니다.</span></div></div>
+            <div class="note"><div class="num">4</div><div><strong>Simulation</strong><span>동일한 개선안을 보여주고 반응 차이를 비교했습니다.</span></div></div>
+          </div>
+        </div>
+        <div class="panel blue">
+          <h3>VOC와 겹치는 지점</h3>
+          <div class="note-list">
+            <div class="note"><div class="num">①</div><div><strong>크리에이터</strong><span>업로드·태그·노출 기준 이슈와 직접 연결됩니다.</span></div></div>
+            <div class="note"><div class="num">②</div><div><strong>학생 / 무료 사용자</strong><span>템플릿 탐색과 다운로드 중심 사용을 확인합니다.</span></div></div>
+            <div class="note"><div class="num">③</div><div><strong>30대 자영업자</strong><span>명함 선택과 연락처 오류 리스크를 확인합니다.</span></div></div>
+            <div class="note"><div class="num">④</div><div><strong>청첩장 고관여 사용자</strong><span>날짜·장소·이름 검수 필요성을 확인합니다.</span></div></div>
+            <div class="note"><div class="num">⑤</div><div><strong>5060 시니어 자영업</strong><span>쉬운 탐색 기준과 주문 전 확인 난이도를 확인합니다.</span></div></div>
+          </div>
+          <div class="big-message">페르소나는 VOC를 대체하지 않고, 개선안의 적용 우선순위를 보는 보조 검증으로 사용했습니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 10 -->
+    <section class="page persona-check-page">
+      <div class="topbar">
+        <div><div class="kicker">PERSONA CHECK</div><h2>페르소나별 개선안 반응</h2></div>
+        <div class="chips"><span class="chip blue">5 Personas</span></div>
+      </div>
+      <div class="persona-card-grid">
+        <div class="persona-card primary">
+          <img src="./assets/personas/persona_jo_saetbyeol.png" alt="">
+          <h3>조샛별</h3>
+          <div class="role">크리에이터</div>
+          <p><b>니즈</b>신규 템플릿이 묻히지 않고, 어떤 태그가 노출에 유리한지 알고 싶다.</p>
+          <p><b>연결</b>최신순 + 구조 태그를 업로드 기준과 연결한다.</p>
+          <span class="tag">A + B</span>
+        </div>
+        <div class="persona-card">
+          <img src="./assets/personas/persona_kim_heejung.png" alt="">
+          <h3>김희정</h3>
+          <div class="role">학생 / 무료 사용자</div>
+          <p><b>니즈</b>다운로드·SNS용 템플릿을 빠르게 찾고 싶다.</p>
+          <p><b>연결</b>사진 중심, 글자 중심처럼 실제 구성 기준으로 좁힌다.</p>
+          <span class="tag">B</span>
+        </div>
+        <div class="persona-card">
+          <img src="./assets/personas/persona_lee_sugyeong.png" alt="">
+          <h3>이수경</h3>
+          <div class="role">30대 자영업자</div>
+          <p><b>니즈</b>명함은 빨리 고르고 싶지만 연락처 오타는 불안하다.</p>
+          <p><b>연결</b>인기순으로 고르고 주문 직전 연락처를 확인한다.</p>
+          <span class="tag dark">A + C</span>
+        </div>
+        <div class="persona-card">
+          <img src="./assets/personas/persona_cheon_hyereum.png" alt="">
+          <h3>천혜름</h3>
+          <div class="role">청첩장 고관여 사용자</div>
+          <p><b>니즈</b>날짜·장소·이름 실수는 되돌리기 어려워 최종 확인이 필요하다.</p>
+          <p><b>연결</b>핵심 문구를 자동 추출하고 재확인한다.</p>
+          <span class="tag dark">C</span>
+        </div>
+        <div class="persona-card">
+          <img src="./assets/personas/persona_choi_sundul.png" alt="">
+          <h3>최순둘</h3>
+          <div class="role">5060 시니어 자영업</div>
+          <p><b>니즈</b>복잡한 옵션은 부담스럽지만 주문 전 정보 확인은 필요하다.</p>
+          <p><b>연결</b>쉬운 말의 필터와 문구 확인을 제공한다.</p>
+          <span class="tag dark">B + C</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 11 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">MVP PLAN</div><h2>MVP 적용 범위</h2></div>
+        <div class="chips"><span class="chip blue">Launch Scope</span></div>
+      </div>
+      <div class="grid-3">
+        <div class="metric"><b>1</b><span>문구 검수</span><p>명함·청첩장 주문 직전 체크리스트형 MVP로 시작합니다. 실수 비용이 가장 큰 영역에 우선 진입합니다.</p></div>
+        <div class="metric"><b>2</b><span>구조 필터</span><p>프레젠테이션·명함·청첩장처럼 템플릿 수가 많은 카테고리에 먼저 적용합니다.</p></div>
+        <div class="metric"><b>3</b><span>정렬</span><p>인기순·최신순을 붙이되, 인기순 기준 정의와 상위 고착화 방지 정책을 먼저 정비합니다.</p></div>
+      </div>
+      <div class="big-message">한 번에 전면 적용하지 않고, 인쇄 주문 영역(검수)과 템플릿 탐색 영역(필터·정렬)을 나눠 지표를 봅니다.</div>
+    </section>
+
+    <!-- Slide 12 -->
+    <section class="page">
+      <div class="topbar">
+        <div><div class="kicker">OPERATION</div><h2>출시 후 관리 지표</h2></div>
+        <div class="chips"><span class="chip blue">Metrics</span></div>
+      </div>
+      <div class="grid-3">
+        <div class="panel">
+          <h3>구조 필터</h3>
+          <ul style="margin-top: 8px; display: grid; gap: 8px;">
+            <li>필터 사용률</li>
+            <li>필터 적용 후 템플릿 클릭률</li>
+            <li>0건 결과 발생률</li>
+            <li>크리에이터 태그 정확도</li>
+          </ul>
+        </div>
+        <div class="panel blue">
+          <h3>정렬</h3>
+          <ul style="margin-top: 8px; display: grid; gap: 8px;">
+            <li>정렬 토글 사용률</li>
+            <li>최신순 신규 템플릿 클릭률</li>
+            <li>인기순 상위 고착화 여부</li>
+            <li>검색 후 편집 진입률</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>오타·문구 검수</h3>
+          <ul style="margin-top: 8px; display: grid; gap: 8px;">
+            <li>검수 완료율</li>
+            <li>검수 후 편집기 재진입률</li>
+            <li>주문 전환율 유지 여부</li>
+            <li>오타 관련 CS 비중</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 13 -->
+    <section class="page final-page">
+      <div class="topbar">
+        <div><div class="kicker">FINAL PROPOSAL</div><h2>최종 제안</h2></div>
+        <div class="chips"><span class="chip dark">Conclusion</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>제안 요약</h3>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>분류 체계 · 구조 필터</strong><span>VOC에서 반복된 태그·카테고리·노출 기준 혼란을 사용자 탐색 기준과 크리에이터 업로드 기준으로 함께 정리합니다.</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>노출 정책 · 정렬</strong><span>인기순은 빠른 선택을 돕고, 최신순은 신규 크리에이터 콘텐츠의 초기 노출 기회를 만듭니다.</span></div></div>
+            <div class="note"><div class="num">3</div><div><strong>주문 단계 · 검수</strong><span>VOC의 중심 이슈는 아니지만, 명함·청첩장 인쇄 전환 단계의 신뢰를 보완하는 기능으로 유지합니다.</span></div></div>
+          </div>
+        </div>
+        <div class="panel dark" style="background: linear-gradient(135deg, var(--black), #1e293b);">
+          <h3>기대 효과</h3>
+          <div class="note-list">
+            <div class="note"><div class="num">1</div><div><strong>탐색 효율 개선</strong><span>사용자는 원하는 구성의 템플릿을 더 빠르게 좁힐 수 있습니다.</span></div></div>
+            <div class="note"><div class="num">2</div><div><strong>운영 문의 감소</strong><span>크리에이터는 업로드·태그·노출 기준을 더 명확하게 이해할 수 있습니다.</span></div></div>
+            <div class="note"><div class="num">3</div><div><strong>전환 신뢰 보완</strong><span>명함·청첩장 주문 전 핵심 문구를 다시 확인해 인쇄 후 실수 비용을 줄입니다.</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 플로팅 고해상도 iOS 스타일 내비게이션 -->
+  <div class="nav">
+    <button type="button" id="prev">‹</button>
+    <div class="counter"><span class="cur">1</span> / <span class="total">13</span></div>
+    <button type="button" id="next">›</button>
+  </div>
+
+  <script>
+    const pages = [...document.querySelectorAll('.page')];
+    const cur = document.querySelector('.cur');
+    const total = document.querySelector('.total');
+    let index = 0;
+    total.textContent = pages.length;
+    
+    function show(i) {
+      index = Math.max(0, Math.min(pages.length - 1, i));
+      pages.forEach((page, n) => page.classList.toggle('active', n === index));
+      cur.textContent = index + 1;
+    }
+    
+    document.getElementById('prev').addEventListener('click', () => show(index - 1));
+    document.getElementById('next').addEventListener('click', () => show(index + 1));
+    
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight' || event.key === 'PageDown') show(index + 1);
+      if (event.key === 'ArrowLeft' || event.key === 'PageUp') show(index - 1);
+      if (event.key === 'Home') show(0);
+      if (event.key === 'End') show(pages.length - 1);
+    });
+
+    const nemotronToggle = document.querySelector('[data-nemotron-toggle]');
+    const nemotronPanel = document.querySelector('[data-nemotron-panel]');
+    if (nemotronToggle && nemotronPanel) {
+      nemotronToggle.addEventListener('click', () => {
+        const isOpen = nemotronPanel.classList.toggle('open');
+        nemotronToggle.textContent = isOpen ? '설명 닫기' : 'Nemotron이란?';
+      });
+    }
+
+    const wire = document.querySelector('[data-tooldi-wire]');
+    if (wire) {
+      const filterButtons = [...wire.querySelectorAll('[data-filter]')];
+      const sortButtons = [...wire.querySelectorAll('[data-sort]')];
+      const summary = wire.querySelector('[data-wire-summary]');
+      const cards = [...wire.querySelectorAll('.mock-card:not(.blank-card)')];
+      let selectedFilters = ['사진 중심'];
+      let selectedSort = '인기순';
+
+      const filterData = {
+        '사진 중심': [
+          { title: '블루 비즈니스 인물 명함', thumbTitle: 'PHOTO CARD 1', bg: 'linear-gradient(135deg, #e0f2fe, #bae6fd)', fg: '#0369a1', badge: 'tooldi free', pages: '1P' },
+          { title: '내추럴 촬영 스튜디오 카드', thumbTitle: 'PHOTO CARD 2', bg: 'linear-gradient(135deg, #fef3c7, #fde68a)', fg: '#7c2d12', badge: 'tooldi free', pages: '2P' },
+          { title: '웨딩 포토 스냅 명함', thumbTitle: 'PHOTO CARD 3', bg: 'linear-gradient(135deg, #fce7f3, #fbcfe8)', fg: '#9d174d', badge: 'tooldi pro', pages: '1P' }
+        ],
+        '일러스트 중심': [
+          { title: '귀여운 아보카도 일러스트 쿠폰', thumbTitle: 'ILLUST 1', bg: 'linear-gradient(135deg, #dcfce7, #bbf7d0)', fg: '#15803d', badge: 'tooldi free', pages: '1P' },
+          { title: '핸드 드로잉 카페 명함', thumbTitle: 'ILLUST 2', bg: 'linear-gradient(135deg, #fef3c7, #fde68a)', fg: '#78350f', badge: 'tooldi free', pages: '2P' },
+          { title: '감성 일러스트 웨딩 카드', thumbTitle: 'ILLUST 3', bg: 'linear-gradient(135deg, #faf5ff, #e9d5ff)', fg: '#6b21a8', badge: 'tooldi pro', pages: '4P' }
+        ],
+        '도형·그래픽 중심': [
+          { title: '모던 사선 기하학 테크 명함', thumbTitle: 'GRAPHIC 1', bg: 'linear-gradient(135deg, #e0f2fe, #bae6fd)', fg: '#0369a1', badge: 'tooldi free', pages: '2P' },
+          { title: '볼드 네온 그라디언트 명함', thumbTitle: 'GRAPHIC 2', bg: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)', fg: '#3730a3', badge: 'tooldi pro', pages: '1P' },
+          { title: '미니멀 모노 격자무늬 카드', thumbTitle: 'GRAPHIC 3', bg: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)', fg: '#374151', badge: 'tooldi free', pages: '1P' }
+        ],
+        '글자 중심': [
+          { title: '클래식 블랙 타이포 명함', thumbTitle: 'TYPO CARD 1', bg: 'linear-gradient(135deg, #18181b, #3f3f46)', fg: '#fff', badge: 'tooldi pro', pages: '1P' },
+          { title: '세리프 정보형 골드 명함', thumbTitle: 'TYPO CARD 2', bg: 'linear-gradient(135deg, #fffbeb, #fde68a)', fg: '#92400e', badge: 'tooldi free', pages: '4P' },
+          { title: '어쿠스틱 영문 이니셜 카드', thumbTitle: 'TYPO CARD 3', bg: 'linear-gradient(135deg, #fafaf9, #e7e5e4)', fg: '#44403c', badge: 'tooldi free', pages: '2P' }
+        ]
+      };
+
+      function renderWire() {
+        const filterLabel = selectedFilters.join(' + ');
+        summary.textContent = `${filterLabel} 템플릿 · ${selectedSort}으로 보는 중`;
+        const data = selectedFilters.flatMap((filter) => filterData[filter] || []);
+        
+        cards.forEach((card, idx) => {
+          const item = data[idx % data.length];
+          if (!item) return;
+          
+          // Update visual thumbnail
+          const thumb = card.querySelector('.mock-thumb');
+          thumb.style.background = item.bg;
+          thumb.style.color = item.fg;
+          
+          const thumbTitle = thumb.querySelector('.card-thumb-title');
+          if (thumbTitle) thumbTitle.textContent = item.thumbTitle || '';
+          
+          const cardBadge = thumb.querySelector('.card-badge');
+          if (cardBadge) cardBadge.textContent = item.badge;
+          
+          const cardPages = thumb.querySelector('.card-pages');
+          if (cardPages) cardPages.textContent = item.pages;
+          
+          // Update titles & meta
+          const titleEl = card.querySelector('.card-title');
+          if (titleEl) {
+            titleEl.textContent = selectedSort === '최신순' ? `[NEW] ${item.title}` : item.title;
+          }
+        });
+      }
+
+      filterButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const filter = button.dataset.filter;
+          if (selectedFilters.includes(filter)) {
+            selectedFilters = selectedFilters.filter((item) => item !== filter);
+          } else {
+            selectedFilters = [...selectedFilters, filter];
+          }
+          if (selectedFilters.length === 0) {
+            selectedFilters = [filter];
+          }
+          filterButtons.forEach((item) => item.classList.toggle('active', selectedFilters.includes(item.dataset.filter)));
+          renderWire();
+        });
+      });
+
+      sortButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          selectedSort = button.dataset.sort;
+          sortButtons.forEach((item) => item.classList.toggle('active', item === button));
+          renderWire();
+        });
+      });
+      renderWire();
+    }
+    show(0);
+  </script>
+</body>
+</html>
